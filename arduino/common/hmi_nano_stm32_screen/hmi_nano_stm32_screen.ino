@@ -61,7 +61,7 @@ ros::NodeHandle nh ;
 
 // ~ Publisher ~ 
 ard_hmi::HMIEvent hmi_event_msg;
-ros::Publisher hmi_event_pub("feedback/ard_hmi/hmi_event", &hmi_event_msg);
+ros::Publisher hmi_event_pub("/feedback/ard_hmi/hmi_event", &hmi_event_msg);
 
 
 void on_game_status(const game_manager::GameStatus& msg){
@@ -101,10 +101,7 @@ void chosen_stratety_team() {
     first_msg = 2 ; 
     hmi_event_msg.event = 1 ; 
     hmi_event_msg.chosen_strategy_id = chosen_strategy_id ; 
-    if ( digitalRead(button_team) == LOW ) 
-      chosen_team_id = 0 ; 
-    else 
-      chosen_team_id = 1 ;
+    chosen_team_id = digitalRead(button_team); 
     hmi_event_msg.chosen_team_id     = chosen_team_id ; 
     hmi_event_pub.publish(&hmi_event_msg);
 }
@@ -212,11 +209,13 @@ void ask_jack_screen () {
   display.setTextSize(1);   
   display.setTextColor(WHITE);
   display.println("Besoin du Jack ");
-  display.print("Strategy : "); 
+  display.print("Team : "); 
   if (chosen_team_id == 0 ) 
-    display.print("gauche"); 
+    display.println("gauche"); 
   else if (chosen_team_id == 1 ) 
-    display.print("droite"); 
+    display.println("droite"); 
+  display.print("Strategy : "); 
+  display.println(chosen_strategy_id); 
   display.display();
 }
 
@@ -229,11 +228,13 @@ void received_jack_screen () {
   display.setTextSize(1);   
   display.setTextColor(WHITE);
   display.println("Merci, j'ai la Jack ");
-  display.print("Strategy : "); 
+  display.print("Team : "); 
   if (chosen_team_id == 0 ) 
-    display.print("gauche"); 
+    display.println("gauche"); 
   else if (chosen_team_id == 1 ) 
-    display.print("droite"); 
+    display.println("droite"); 
+  display.print("Strategy : "); 
+  display.println(chosen_strategy_id); 
   display.display();
 }
 
@@ -284,7 +285,7 @@ void loop() {
     if (first_msg == -1 && game_status != -1 ) msg_intialize() ; 
     if (first_msg ==  1 && game_status != -1 ) chosen_stratety_team() ; 
     if (ask_jack_status == 1 && game_status == 0 ) ask_jack() ; 
-    if (ask_jack_status == 0 && game_status ==0)  jack_pulled() ; 
+    if (ask_jack_status == 0 && game_status == 0)  jack_pulled() ; 
     nh.spinOnce() ; 
 }
   
