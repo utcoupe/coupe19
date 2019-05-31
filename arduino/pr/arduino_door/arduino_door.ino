@@ -140,8 +140,8 @@ void setup() {
     servo_flipper_2.attach(servo_flipper_2_pin) ; 
 
     // Sucker Actuator init 
-    pinMode(sucker_pin_1,INPUT); 
-    pinMode(sucker_pin_2,INPUT);   
+    pinMode(sucker_pin_1,OUTPUT); 
+    pinMode(sucker_pin_2,OUTPUT);   
 }
 
 void loop() {  
