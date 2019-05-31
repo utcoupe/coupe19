@@ -103,11 +103,11 @@ int move_ax12(bool open ) { // 1 : open AX12 and 0 : close AX12
   ax12_event_msg.mode = 0 ; 
   ax12_event_msg.motor_id = 2 ; 
   if ( open == 1 ) {
-    ax12_event_msg.position =135  ; // Open 
+    ax12_event_msg.position =  135  ; // Open 
     nh.loginfo("open_ax12"); 
   }
   if ( open == 0 ) {
-    ax12_event_msg.position = 175 ; // Close 
+    ax12_event_msg.position =  185 ;  //175 ; // Close 
     nh.loginfo("close_ax12"); 
   }
   pub_ax12_responses.publish(&ax12_event_msg) ; 

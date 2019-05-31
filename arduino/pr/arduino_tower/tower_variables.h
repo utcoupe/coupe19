@@ -5,7 +5,7 @@
 int dir_pin        = 10 ;
 int step_pin       = 9 ; 
 int en_pin         = 11; 
-uint16_t min_delay = 1000 ; 
+uint16_t min_delay = 1000 ;
 
 int servo_unload_pin_2 = 13 ; //number 2 right side 
 int servo_unload_pin_1 = 12 ; //number 1 left side 
@@ -23,9 +23,9 @@ const int button_down_pin = 3 ; // button down for lift
 int lift_position = 0 ; // no postion for now 
 #define H          300      // H_FLOOR_1 = 300 * 2 
 #define H_SAS_LOW  2000     // 1800 avant 
-#define H_FLOOR_3  1200     // ? 
-#define H_FLOOR_2  1000     // ? 
-#define H_FLOOR_1  500      // ? 
+//#define H_FLOOR_3  1200     // ? 
+//#define H_FLOOR_2  1000     // ? 
+#define H_FLOOR_1  1500      // ? 
 #define H_GROUND   0        // ? 
 #define H_ATOM     200      // Verified 200~160
 #define H_ERREUR   200      // voir pour meilleure précision
