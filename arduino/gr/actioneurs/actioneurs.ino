@@ -36,14 +36,13 @@ void initialize(){
     selector.write(SELECTOR_TO_TOWER);
 }
 
-void stop(){
-    digitalWrite(PUMP_ENABLE, LOW);
-    for (int i=0; i<3; i++){
-        digitalWrite(PUMP[i], LOW);
-    }
+void stop_elec(){
     stepper_pucks_door.disable();
     digitalWrite(TOWER_PIN, LOW);
     digitalWrite(SCALE_DOOR_PIN, LOW);
+    for (int i=0; i<3; i++){
+        digitalWrite(PUMP[i], LOW);
+    }
     busy = false;
 }
 
@@ -51,15 +50,13 @@ void on_game_status(const game_manager::GameStatus& msg){
     //Hardcoded to GAME_ON FOR TESTING
     game_status = GAME_ON;//msg.game_status; 
     if (game_status != GAME_ON)
-        stop();
+        stop_elec();
 
     if (msg.init_status == 1 && game_status == GAME_ON)
         initialize(); 
 }
   
 void suck_up_pucks() {
-    digitalWrite(PUMP_ENABLE, HIGH);
-    delay(PUMP_DELAY);
     for(int i = 0; i < 3; i++){
         digitalWrite(PUMP[i], HIGH);
     }
@@ -67,76 +64,70 @@ void suck_up_pucks() {
 }
 
 void on_take_pucks(const ard_gr_front::PucksTake& msg){
-    //nh.loginfo("Taking pucks...");
+    nh.loginfo("Taking pucks...");
     if (game_status != GAME_ON || busy){
         publish_response(EVENT_PUCKS_TAKE, false);
         return;
     }
     busy = true;
 
-    puck_to_scale[0] = msg.P1;
-    puck_to_scale[1] = msg.P2;
-    puck_to_scale[2] = msg.P3;
+    puck_to_scale[0] = msg.p1;
+    puck_to_scale[1] = msg.p2;
+    puck_to_scale[2] = msg.p3;
 
     suck_up_pucks();
     busy = false;
+    publish_response(EVENT_PUCKS_TAKE, true);
 }
 
 void camion_poubelle(){    
     int compensate = 35;
-    for(int i = 0; i < 10; i++){
+    for(int i = 0; i < 30; i++){
         pucks_door_goes_up(CAMION_POUBELLE_STEP, false);
         delay(10);
-        pucks_door_goes_up(CAMION_POUBELLE_STEP + compensate, true);
+        pucks_door_goes_up(CAMION_POUBELLE_STEP, true);
         delay(10);
         compensate -= 6;
+        if (digitalRead(PUCKS_DOOR_UP_SWITCH_PIN) == HIGH){
+            pucks_door_goes_up(CAMION_POUBELLE_STEP, false);
+            return;
+        }
     }
 }
 
 void free_puck_to_sort(int i) {
     digitalWrite(PUMP[i], LOW);
-    delay(PUMP_DELAY);
-    camion_poubelle();
-    pucks_door_all_the_way_up();
-    pucks_door_goes_up(2 * CAMION_POUBELLE_STEP, false);
     delay(PUCK_TIME_TO_MOVE);
+    camion_poubelle();
 }
 
-void pucks_door_goes_up(int steps, bool go_up) {
-    //nh.loginfo("Pucks door going up/down...");
-    stepper_pucks_door.enable();
-    
-    if (go_up)
-        stepper_pucks_door.moveStep(steps, true);
-    else
-        stepper_pucks_door.moveStep(steps, false);
+void pucks_door_goes_up(int steps, bool go_up) {    
+    stepper_pucks_door.moveStep(steps, go_up);
     
     while(stepper_pucks_door.getRemainingStep() != 0 && game_status == GAME_ON) {
         stepper_pucks_door.update();
         nh.spinOnce();
     }
     
-    stepper_pucks_door.disable();
     //nh.loginfo("Pucks door has moved");
 }
 
 void dump_in_scale(){
-    selector.write(SELECTOR_TO_SCALE);
-    delay(SELECTOR_TIME_TO_MOVE);
-
-    for(int i = 0; i < 3; i++){
+    for(int i = 1; i < 3; i++){
         if(puck_to_scale[i] && game_status == GAME_ON)
            free_puck_to_sort(i);
-
     }
+    if(puck_to_scale[0] && game_status == GAME_ON)
+       free_puck_to_sort(0);
 }
 
 void dump_in_tower(){
-    selector.write(SELECTOR_TO_TOWER);
-    for(int i = 0; i < 3; i++){
+    for(int i = 1; i < 3; i++){
         if(!puck_to_scale[i] && game_status == GAME_ON)
-            free_puck_to_sort(i);
+            free_puck_to_sort(i);    
     }
+    if(!puck_to_scale[0] && game_status == GAME_ON)
+       free_puck_to_sort(0);
 }
 
 void pucks_door_all_the_way_up(){
@@ -144,41 +135,53 @@ void pucks_door_all_the_way_up(){
         //security
         return;
 
-    stepper_pucks_door.enable();
-    while (digitalRead(PUCKS_DOOR_UP_SWITCH_PIN) != HIGH && game_status == GAME_ON){
-        stepper_pucks_door.moveStep(1, true);
-        stepper_pucks_door.update();
-        nh.spinOnce();
+    stepper_pucks_door.moveStep(5000, true);
+    while (stepper_pucks_door.getRemainingStep() != 0 &&
+        game_status == GAME_ON &&
+        digitalRead(PUCKS_DOOR_UP_SWITCH_PIN) != HIGH){
+            stepper_pucks_door.update();
+            nh.spinOnce();
     }
-    stepper_pucks_door.disable();
+    stepper_pucks_door.stop();
 }
 
 void raise_and_sort_pucks() {
-    //nh.loginfo("Raising and sorting...");
-    if(game_status != GAME_ON || busy){
-        publish_response(EVENT_PUCKS_RAISE_SORT, false);
-        return;
+    nh.loginfo("Raising and sorting...");
+    stepper_pucks_door.enable();
+
+    if (puck_to_scale[1])
+      selector.write(SELECTOR_TO_SCALE);
+    else
+      selector.write(SELECTOR_TO_TOWER);
+      
+    pucks_door_all_the_way_up();
+    pucks_door_goes_up(50, false);
+
+    if (puck_to_scale[1]){
+      dump_in_scale();
+      selector.write(SELECTOR_TO_TOWER);
+      delay(SELECTOR_TIME_TO_MOVE);
+      dump_in_tower();
+    }
+    else{
+      dump_in_tower();
+      selector.write(SELECTOR_TO_SCALE);
+      delay(SELECTOR_TIME_TO_MOVE);
+      dump_in_scale();
     }
 
-    pucks_door_goes_up(PUCKS_DOOR_STEP_NB, true);
-
-    dump_in_tower();
-    dump_in_scale();
-
-    digitalWrite(PUMP_ENABLE, LOW);
+    nh.loginfo("all the waying");
     pucks_door_all_the_way_up();
+    nh.loginfo("all the way'd");
     pucks_door_goes_up(PUCKS_DOOR_STEP_NB, false);
-
+    stepper_pucks_door.disable();
+    
     publish_response(EVENT_PUCKS_RAISE_SORT, true);
 }
 
 
 void raise_scale_door(){
-    //nh.loginfo("Raising scale door...");
-    if (game_status != GAME_ON || busy){
-        publish_response(EVENT_RAISE_SCALE_DOOR, false);
-        return; 
-    }
+    nh.loginfo("Raising scale door...");
     digitalWrite(SCALE_DOOR_PIN, HIGH);
     int time_counter = 0;
     while (digitalRead(SCALE_DOOR_LIMIT_PIN)!= HIGH && 
@@ -195,15 +198,10 @@ void raise_scale_door(){
 }   
 
 void raise_tower(){
-    //nh.loginfo("Raising tower....");
-    if (game_status != GAME_ON || busy){
-        publish_response(EVENT_RAISE_TOWER, false);
-        return;
-    }
+    nh.loginfo("Raising tower....");
 
     digitalWrite(TOWER_PIN, HIGH);
     while (digitalRead(TOWER_LIMIT_PIN)!= HIGH && game_status == GAME_ON) {   
-        delay(50);
         nh.spinOnce();
     }
     digitalWrite(TOWER_PIN, LOW);
@@ -215,33 +213,34 @@ void on_raise_thing(const ard_gr_front::RaiseThing& msg){
     if (game_status != GAME_ON || busy){
         switch(msg.thing_to_raise){
             case RAISE_AND_SORT_ORDER:
-            publish_response(EVENT_PUCKS_RAISE_SORT, false);
-            break;
+                publish_response(EVENT_PUCKS_RAISE_SORT, false);
+                break;
             case RAISE_TOWER_ORDER:
-            publish_response(EVENT_RAISE_TOWER, false);
-            break;
+                publish_response(EVENT_RAISE_TOWER, false);
+                break;
             case RAISE_SCALE_DOOR_ORDER:
-            publish_response(EVENT_RAISE_SCALE_DOOR, false);
-            break;
+                publish_response(EVENT_RAISE_SCALE_DOOR, false);
+                break;
         }
         return;
     }
+
     busy = true;
     switch(msg.thing_to_raise){
         case RAISE_AND_SORT_ORDER:
-        raise_and_sort_pucks();
-        break;
+            raise_and_sort_pucks();
+            break;
         
         case RAISE_TOWER_ORDER:
-        raise_tower();
-        break;
+            raise_tower();
+            break;
         
         case RAISE_SCALE_DOOR_ORDER:
-        raise_scale_door();
-        break;
+            raise_scale_door();
+            break;
         
         default:
-        nh.logwarn("WARNING : incorrect raise msg : must be 0,1,2");
+            nh.logwarn("WARNING : incorrect raise msg : must be 0,1,2");
     }
     busy = false;
 }
@@ -253,7 +252,6 @@ ros::Subscriber<ard_gr_front::PucksTake>       sub_take_pucks("/actionneurs/ard_
 
 void connectPins(){
 
-    pinMode(PUMP_ENABLE, OUTPUT);
     pinMode(PUMP_1, OUTPUT);
     pinMode(PUMP_2, OUTPUT);
     pinMode(PUMP_3, OUTPUT);
